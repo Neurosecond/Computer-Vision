@@ -1,0 +1,62 @@
+import numpy as np
+import cv2
+
+
+# Метод для детектирования и отслеживания объекта с возможностью записи mp4
+def tracking(cap):
+    # Захват фрейма из объекта, переданного в метод
+    _, frame = cap.read()
+    # Установка начального положения окна захвата
+    x, y, w, h = 540, 200, 900, 700
+    track_window = (x, y, w, h)
+    # Установка ROI для детектирования
+    roi = frame[y:y + h, x:x + w]
+    # Конвертирование к HSV цветовому пространству
+    hsv_roi = cv2.cvtColor(roi, cv2.COLOR_BGR2HSV)
+    # Создание маски путем урезания цветового пространства ROI
+    mask = cv2.inRange(hsv_roi, np.array((90., 40., 90.)), np.array((179., 255., 255.)))
+    # Расчет гистограммы
+    roi_hist = cv2.calcHist([hsv_roi], [0], mask, [180], [0, 180])
+    # Нормализация гистограммы
+    cv2.normalize(roi_hist, roi_hist, 0, 255, cv2.NORM_MINMAX)
+    # Определение критерия прерывания
+    term_crit = (cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 10, 1)
+
+    # Определение кодеков и создание VideoWriter object
+    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+    out = cv2.VideoWriter('output.mp4', fourcc, 15.0, (2224, 1080))
+
+    while True:
+        success, frame = cap.read()
+        if success is True:
+            hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+            hsv = cv2.GaussianBlur(hsv, (9, 9), 0, 1)
+            dst = cv2.calcBackProject([hsv], [0], roi_hist, [0, 180], 1)
+            mask = cv2.inRange(hsv, np.array((90., 40., 90.)), np.array((179., 255., 255.)))
+            # Применение алгоритмов нахождения следующего окна
+            _, track_window = cv2.CamShift(mask, track_window, term_crit)
+            # Вывод координат для рисования рамки и кадрирования
+            x, y, w, h = track_window
+            crop_frame = frame[y:y + h, x:x + w]
+            img2 = cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 255), 10)
+            img3 = cv2.resize(img2, (1920 // 2, 1080 // 2))
+            mask = cv2.resize(mask, (1920 // 3, 1080 // 3))
+            # Создание окон с выводом фреймов
+            cv2.imshow('img2', img3)
+            cv2.imshow('hsv', mask)
+            cv2.imshow('crop', crop_frame)
+            # Запись фрейма в видео-файл
+            out.write(img2)
+
+            k = cv2.waitKey(1) & 0xff
+            if k == 27:
+                break
+        else:
+            break
+    cap.release()
+    cv2.destroyAllWindows()
+
+
+if __name__ == '__main__':
+    capture = cv2.VideoCapture('resources/video/20221214_165012.mp4')
+    tracking(capture)
