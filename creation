@@ -1,0 +1,36 @@
+import cv2
+import imageio
+
+
+def creation_gif():
+    cap = cv2.VideoCapture('resources/video/ECG.mp4')
+    frames = []
+    image_count = 0
+
+    while cap.isOpened():
+        ret, frame = cap.read()
+        cv2.imshow('frame', frame)
+
+        key = cv2.waitKey(30)
+        if key == -1:
+            image_count += 1
+            frames.append(frame)
+            print("Adding new image:", image_count)
+        elif key == ord("q"):
+            break
+
+    cap.release()
+    cv2.destroyAllWindows()
+
+    print("Images added: ", len(frames))
+
+    print("Saving GIF file")
+    with imageio.get_writer("ecg.gif", mode="I") as writer:
+        for idx, frame in enumerate(frames):
+            print("Adding frame to GIF file: ", idx + 1)
+            writer.append_data(frame)
+    writer.close()
+
+
+if __name__ == '__main__':
+    creation_gif()
