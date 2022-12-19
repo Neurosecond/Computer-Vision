@@ -1,0 +1,83 @@
+from datetime import timedelta
+import numpy as np
+import cv2
+import os
+
+# Константа сохраняемости кадров в секунду
+SAVING_FRAMES_PER_SECOND = 2
+
+
+def format_timedelta(td):
+    """Служебная функция для форматирования объектов timedelta (например, 00:00:20.05)
+        исключая микросекунды и сохраняя миллисекунды"""
+    result = str(td)
+    try:
+        result, ms = result.split(".")
+    except ValueError:
+        return "-" + result + ".00".replace(":", "-")
+    ms = int(ms)
+    ms = round(ms / 1e4)
+    return f"-{result}.{ms:02}".replace(":", "-")
+
+
+def get_saving_frames_durations(cap, saving_fps):
+    """Функция, которая возвращает список длительностей, в которые следует сохранять кадры."""
+    s = []
+    # Получение продолжительности клипа, разделив количество кадров на количество кадров в секунду
+    clip_duration = cap.get(cv2.CAP_PROP_FRAME_COUNT) / cap.get(cv2.CAP_PROP_FPS)
+    for i in np.arange(0, clip_duration, 1 / saving_fps):
+        s.append(i)
+    return s
+
+
+def main(video_file):
+    # Создание специальной директории для раскадровки
+    filename, _ = os.path.splitext(video_file)
+    filename += "-opencv"
+    if not os.path.isdir(filename):
+        os.mkdir(filename)
+
+    try:
+        cap = cv2.VideoCapture(video_file)
+        fps = cap.get(cv2.CAP_PROP_FPS)
+        saving_frames_per_second = min(fps, SAVING_FRAMES_PER_SECOND)
+        # Получение списка длительностей для сохранения
+        saving_frames_durations = get_saving_frames_durations(cap, saving_frames_per_second)
+        # Подготовка и запуск цикла
+        count = 0
+        save_count = 0
+        while cap.isOpened():
+            success, frame = cap.read()
+            if not success:
+                # Выйти из цикла, если нет фреймов для чтения
+                break
+            # Получение продолжительности, разделив количество кадров на FPS
+            frame_duration = count / fps
+            try:
+                # Получение самой ранней продолжительности для сохранения
+                closest_duration = saving_frames_durations[0]
+            except IndexError:
+                # Список пуст, все кадры длительности сохранены
+                break
+            if frame_duration >= closest_duration:
+                # Если ближайшая длительность меньше или равна длительности кадра,
+                # то сохраняем фрейм
+                frame_duration_formatted = format_timedelta(timedelta(seconds=frame_duration))
+                saveframe_name = os.path.join(filename, f"frame{frame_duration_formatted}.jpg")
+                cv2.imwrite(saveframe_name, frame)
+                save_count += 1
+                print(f"{saveframe_name} сохранён")
+                # Удаление точки продолжительности из списка, так как эта точка длительности уже сохранена
+                try:
+                    saving_frames_durations.pop(0)
+                except IndexError:
+                    pass
+            # Увеличение количества кадров на 1
+            count += 1
+    except KeyboardInterrupt:
+        pass
+    print(f"Итого сохранено кадров {save_count}")
+
+
+if __name__ == "__main__":
+    main('resources/video/stabilized.mp4')
