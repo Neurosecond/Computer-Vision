@@ -1,0 +1,117 @@
+import numpy as np
+import sys
+import cv2
+
+
+# Метод детектирования рамки на маскированном фрейме
+def detection():
+    count = 0
+    try:
+        cap = cv2.VideoCapture('resources/video/20221214_165012.mp4')
+
+        while cap.isOpened():
+            # Захват фрейма
+            success, frame = cap.read()
+            # Счетчик для оценки оперирования памятью
+            count += sys.getsizeof(frame)
+
+            # Если фрейм читается корректно success is True
+            if not success:
+                print("Can't receive frame (stream end?). Exiting ...")
+                break
+
+            # Предобработка маскирования
+            frame = cv2.resize(frame, (1920 // 3, 1080 // 3))
+            frame = cv2.GaussianBlur(frame, (3, 3), 0)
+            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+            # frame = cv2.Canny(frame, 32, 100)
+
+            # Маска как срез цветового пространства
+            lower = np.array([130, 190, 0], np.uint8)
+            upper = np.array([179, 255, 255], np.uint8)
+            separated = cv2.inRange(frame, lower, upper)
+
+            # Определение контуров для захвата
+            contours, hierarchy = cv2.findContours(separated, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
+            max_area = 0
+            for idx, contour in enumerate(contours):
+                area = cv2.contourArea(contour)
+                if area > max_area:
+                    max_area = area
+                    largest_contour = contour
+                    if largest_contour is not None:
+                        moment = cv2.moments(largest_contour)
+                        # Задание границы значения нулевого момента изображения
+                        if moment["m00"] > 1000:
+                            rect = cv2.minAreaRect(largest_contour)
+                            rect = ((rect[0][0], rect[0][1]), (rect[1][0], rect[1][1]), rect[2])
+                            (width, height) = (rect[1][0], rect[1][1])
+                            # print(str(width) + " " + str(height))
+                            box = cv2.boxPoints(rect)
+                            box = np.int0(box)
+                            if 0.9 * width < height < 1.1 * width:
+                                cv2.drawContours(frame, [box], 0, (0, 0, 255), 2)
+
+            cv2.imshow("Stream", separated)
+            cv2.waitKey(20)
+
+        cap.release()
+        cv2.destroyWindow("Stream")
+        print(count)
+
+    except KeyboardInterrupt:
+        pass
+
+
+def nothing():
+    pass
+
+
+def settings():
+    cv2.namedWindow("result")  # создаем главное окно
+    cv2.namedWindow("settings")  # создаем окно настроек
+
+    cap = cv2.VideoCapture('resources/video/20221214_165012.mp4')
+    # Создаем 6 бегунков для настройки начального и конечного цвета фильтра
+    cv2.createTrackbar('h1', 'settings', 0, 255, nothing)
+    cv2.createTrackbar('s1', 'settings', 0, 255, nothing)
+    cv2.createTrackbar('v1', 'settings', 0, 255, nothing)
+    cv2.createTrackbar('h2', 'settings', 255, 255, nothing)
+    cv2.createTrackbar('s2', 'settings', 255, 255, nothing)
+    cv2.createTrackbar('v2', 'settings', 255, 255, nothing)
+    crange = [0, 0, 0, 0, 0, 0]
+
+    while True:
+        flag, frame = cap.read()
+        img = cv2.resize(frame, (1920 // 2, 1080 // 2))
+        hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+
+        # Считываем значения бегунков
+        h1 = cv2.getTrackbarPos('h1', 'settings')
+        s1 = cv2.getTrackbarPos('s1', 'settings')
+        v1 = cv2.getTrackbarPos('v1', 'settings')
+        h2 = cv2.getTrackbarPos('h2', 'settings')
+        s2 = cv2.getTrackbarPos('s2', 'settings')
+        v2 = cv2.getTrackbarPos('v2', 'settings')
+
+        # Формируем начальный и конечный цвет фильтра
+        lower = np.array((h1, s1, v1), np.uint8)
+        upper = np.array((h2, s2, v2), np.uint8)
+
+        # Накладываем фильтр на кадр в модели HSV
+        thresh = cv2.inRange(hsv, lower, upper)
+
+        cv2.imshow('result', thresh)
+
+        ch = cv2.waitKey(33)
+        if ch == 27:
+            break
+
+    cap.release()
+    cv2.destroyAllWindows()
+
+
+if __name__ == "__main__":
+    settings()
+    # detection()
+    # print(os.path.getsize('resources/video/mindray.mp4'))
