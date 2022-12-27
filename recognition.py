@@ -7,7 +7,7 @@ tessdata_dir_config = '--tessdata-dir "C:/Program Files (x86)/Tesseract-OCR/tess
 
 
 def recognition():
-    image = cv2.imread('resources/aventa_crop2.jpg')
+    image = cv2.imread('resources/crop.jpg')
     # Получаем контрастное изображение в серых тонах
     # image = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
     # image = cv2.inRange(image, (10., 85., 130.), (179., 255., 255.))
